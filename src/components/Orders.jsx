@@ -1,7 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import ConfirmModal from './ConfirmModal';
+import EmptyState from './EmptyState';
 
-function Orders({ orders, onUpdateStatus }) {
+function Orders({ orders, onUpdateStatus, onDeleteOrder }) {
+  const [modal, setModal] = useState({ isOpen: false, message: '', onConfirm: null });
+
   const formatDate = (isoString) => {
     const d = new Date(isoString);
     return `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
@@ -9,43 +13,78 @@ function Orders({ orders, onUpdateStatus }) {
 
   const handleStatusClick = (order) => {
     if (order.status === 'pending') {
-      if (confirm(`这份 ${order.dishName} 做好了吗？`)) {
-        onUpdateStatus(order.id, 'completed');
-      }
+      setModal({
+        isOpen: true,
+        message: `这份 ${order.dishName} 做好了吗？`,
+        onConfirm: () => onUpdateStatus(order.id, 'completed')
+      });
     }
+  };
+
+  const handleDelete = (e, order) => {
+    e.stopPropagation(); // 防止触发 handleStatusClick
+    setModal({
+      isOpen: true,
+      message: '确定要删除这条记录吗？',
+      onConfirm: () => onDeleteOrder(order.id)
+    });
+  };
+
+  const closeModal = () => {
+    setModal({ ...modal, isOpen: false });
+  };
+
+  const confirmAction = () => {
+    if (modal.onConfirm) modal.onConfirm();
+    closeModal();
   };
 
   return (
     <div className="container">
-      <h1>今日订单</h1>
+      <ConfirmModal 
+        isOpen={modal.isOpen}
+        message={modal.message}
+        onConfirm={confirmAction}
+        onCancel={closeModal}
+      />
+      <h1>小于今天想吃它</h1>
       
       {orders.length === 0 ? (
-        <div style={{ textAlign: 'center', marginTop: '50px', color: '#999' }}>
-          今天还没点菜呢
-        </div>
+        <EmptyState message="今天还没点菜呢，快去选一个吧~" />
       ) : (
         <div className="order-list">
           {orders.map(item => (
             <div 
               key={item.id} 
+              className="glass-card"
               style={{
                 ...styles.orderItem,
-                opacity: item.status === 'completed' ? 0.6 : 1
+                opacity: item.status === 'completed' ? 0.8 : 1
               }}
               onClick={() => handleStatusClick(item)}
             >
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{
                   ...styles.orderName,
-                  textDecoration: item.status === 'completed' ? 'line-through' : 'none'
+                  textDecoration: item.status === 'completed' ? 'line-through' : 'none',
+                  color: item.status === 'completed' ? '#999' : '#5c4033'
                 }}>{item.dishName}</div>
                 <div style={styles.orderTime}>{formatDate(item.createTime)}</div>
               </div>
-              <div style={{
-                ...styles.status,
-                color: item.status === 'completed' ? '#4CAF50' : '#FF5733'
-              }}>
-                {item.status === 'pending' ? '待制作' : '已完成'}
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  ...styles.status,
+                  color: item.status === 'completed' ? '#4CAF50' : '#ff9e99'
+                }}>
+                  {item.status === 'pending' ? '待制作' : '已完成'}
+                </div>
+                <button 
+                  onClick={(e) => handleDelete(e, item)}
+                  style={styles.deleteBtn}
+                >
+                  删除
+                </button>
               </div>
             </div>
           ))}
@@ -53,7 +92,7 @@ function Orders({ orders, onUpdateStatus }) {
       )}
 
       <div style={{ marginTop: '50px', textAlign: 'center' }}>
-        <Link to="/admin" style={{ color: '#ccc', fontSize: '12px', textDecoration: 'none' }}>
+        <Link to="/admin" style={{ color: 'rgba(139, 90, 43, 0.5)', fontSize: '12px', textDecoration: 'none' }}>
           我是厨师，我要加菜
         </Link>
       </div>
@@ -63,28 +102,30 @@ function Orders({ orders, onUpdateStatus }) {
 
 const styles = {
   orderItem: {
-    background: 'white',
-    marginBottom: '10px',
-    padding: '15px',
-    borderRadius: '8px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+    cursor: 'pointer',
   },
   orderName: {
     fontSize: '18px',
-    fontWeight: 'bold',
+    fontWeight: '800',
+    marginBottom: '5px'
   },
   orderTime: {
     fontSize: '12px',
-    color: '#999',
-    marginTop: '5px'
+    color: '#8b5a2b',
+    opacity: 0.8
   },
   status: {
-    color: '#FF5733',
-    fontWeight: 'bold',
-    fontSize: '14px'
+    fontSize: '14px',
+    fontWeight: 'bold'
+  },
+  deleteBtn: {
+    padding: '5px 10px',
+    fontSize: '12px',
+    background: '#ff9e99',
+    borderRadius: '15px'
   }
 };
 

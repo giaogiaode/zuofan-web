@@ -4,6 +4,7 @@ import Menu from './components/Menu';
 import Orders from './components/Orders';
 import History from './components/History';
 import Admin from './components/Admin';
+import BackgroundDecorations from './components/BackgroundDecorations';
 import AV from 'leancloud-storage';
 
 // 初始化 LeanCloud (需要替换为你自己的 AppID 和 AppKey)
@@ -132,13 +133,45 @@ function App() {
     const menu = new MenuObj();
     menu.set('name', dish.name);
     menu.set('description', dish.description);
-    menu.set('image', '');
+    menu.set('image', dish.image || ''); // 支持图片
     
     menu.save().then((savedMenu) => {
       setMenuList([...menuList, { id: savedMenu.id, ...savedMenu.attributes }]);
       alert('菜品添加成功！');
     }, (error) => {
       alert('添加失败：' + error.message);
+    });
+  };
+
+  const updateMenu = (id, updatedData) => {
+    const menu = AV.Object.createWithoutData('Menu', id);
+    menu.set('name', updatedData.name);
+    menu.set('description', updatedData.description);
+    if (updatedData.image !== undefined) {
+      menu.set('image', updatedData.image);
+    }
+    
+    menu.save().then(() => {
+      setMenuList(menuList.map(item => {
+        if (item.id === id) {
+          return { ...item, ...updatedData };
+        }
+        return item;
+      }));
+      alert('修改成功');
+    }).catch(error => {
+      console.error('修改失败', error);
+      alert('修改失败：' + error.message);
+    });
+  };
+
+  const deleteMenu = (id) => {
+    const menu = AV.Object.createWithoutData('Menu', id);
+    menu.destroy().then(() => {
+      setMenuList(menuList.filter(item => item.id !== id));
+    }).catch(error => {
+      console.error('删除失败', error);
+      alert('删除失败：' + error.message);
     });
   };
 
@@ -177,14 +210,17 @@ function App() {
     });
   };
 
-  const updateOrderReview = (orderId, review) => {
+  const updateOrderReview = (orderId, review, reviewImage) => {
     const order = AV.Object.createWithoutData('Orders', orderId);
     order.set('review', review);
+    if (reviewImage) {
+      order.set('reviewImage', reviewImage);
+    }
     order.save().then(() => {
       // 更新本地状态
       setOrders(orders.map(o => {
         if (o.id === orderId) {
-          return { ...o, review: review };
+          return { ...o, review: review, reviewImage: reviewImage || o.reviewImage };
         }
         return o;
       }));
@@ -194,15 +230,46 @@ function App() {
     });
   };
 
+  const deleteOrder = (orderId) => {
+    const order = AV.Object.createWithoutData('Orders', orderId);
+    order.destroy().then(() => {
+      setOrders(orders.filter(o => o.id !== orderId));
+    }).catch(error => {
+      console.error('删除订单失败', error);
+      alert('删除失败：' + error.message);
+    });
+  };
+
+  // 过滤出今天的订单或未完成的订单
+  const isToday = (dateString) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear();
+  };
+
+  const activeOrders = orders.filter(order => 
+    order.status === 'pending' || isToday(order.createTime)
+  );
+
   return (
     <Router>
       <div className="app-content">
+        <BackgroundDecorations />
         <Routes>
           <Route path="/" element={<Menu menuList={menuList} onOrder={addOrder} />} />
           <Route path="/menu" element={<Menu menuList={menuList} onOrder={addOrder} />} />
-          <Route path="/orders" element={<Orders orders={orders} onUpdateStatus={updateOrderStatus} />} />
-          <Route path="/history" element={<History orders={orders} onUpdateReview={updateOrderReview} />} />
-          <Route path="/admin" element={<Admin onAddDish={addToMenu} />} />
+          <Route path="/orders" element={<Orders orders={activeOrders} onUpdateStatus={updateOrderStatus} onDeleteOrder={deleteOrder} />} />
+          <Route path="/history" element={<History orders={orders} onUpdateReview={updateOrderReview} onDeleteOrder={deleteOrder} />} />
+          <Route path="/admin" element={
+            <Admin 
+              menuList={menuList} 
+              onAddDish={addToMenu} 
+              onUpdateDish={updateMenu}
+              onDeleteDish={deleteMenu}
+            />
+          } />
         </Routes>
         <TabBar />
       </div>
